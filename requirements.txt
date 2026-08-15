@@ -1,0 +1,9 @@
+httpx
+playwright
+pydantic
+python-dotenv
+pymongo
+psycopg[binary]
+langchain-core
+langchain-groq
+langchain-google-genai

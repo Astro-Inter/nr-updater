@@ -1,0 +1,41 @@
+name: Atualizar NRs
+
+on:
+  schedule:
+    - cron: "0 3 1 */3 *"   
+
+  workflow_dispatch:  
+
+jobs:
+  atualizar:
+    runs-on: ubuntu-latest
+
+    env:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY}}
+      MONGO_URI: ${{ secrets.MONGO_URI }}
+      MONGO_DATABASE: ${{ secrets.MONGO_DATABASE}}
+      POSTGRES_HOST: ${{ secrets.POSTGRES_HOST}}
+      POSTGRES_PORT: ${{ secrets.POSTGRES_PORT}}
+      POSTGRES_DATABASE: ${{ secrets.POSTGRES_DATABASE}}
+      POSTGRES_USER: ${{ secrets.POSTGRES_USER}}
+      POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD}}
+
+
+    steps:
+      - name: Baixar projeto
+        uses: actions/checkout@v4
+
+      - name: Instalar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalar dependências
+        run: pip install -r requirements.txt
+
+      - name: Instalar navegador do Playwright
+        run: python -m playwright install --with-deps chromium
+
+      - name: Executar rotina
+        run: python main.py
