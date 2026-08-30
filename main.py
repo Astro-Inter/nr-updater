@@ -35,7 +35,7 @@ def main():
     resultados = asyncio.run(executar_robo())
     if not resultados:
         log.error("Nenhuma NR coletada; nada a sincronizar.")
-        return
+        raise SystemExit(1)
 
     atualizadas = falhas = 0
     for nr_id, dados in sorted(resultados.items()):
