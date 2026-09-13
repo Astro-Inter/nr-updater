@@ -40,6 +40,11 @@ def salvar_nr(nr_data: NrSchema) -> None:
 def listar_nrs_para_postgres() -> list[dict]:
     campos = ("nome", "revogada", "tempo_reciclagem_meses")
     return [
-        {"id": str(nr["_id"]), **{campo: nr.get(campo) for campo in campos}}
+        {
+            "id": str(nr["_id"]),
+            "nome": nr.get("nome"),
+            "revogada": nr.get("revogada"),
+            "tempo_reciclagem_mes": nr.get("tempo_reciclagem_meses"),
+        }
         for nr in collection.find({}, {campo: 1 for campo in campos})
     ]

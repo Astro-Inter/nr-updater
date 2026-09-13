@@ -58,7 +58,7 @@ def main():
 
     log.info("Resumo: %d atualizadas, %d falhas, %d coletadas.", atualizadas, falhas, len(resultados))
 
-    executar_procedure("ler_json_nrs", listar_nrs_para_postgres())
+    executar_procedure("ler_json_nr", listar_nrs_para_postgres())
     log.info("Sincronização com o PostgreSQL concluída.")
 
 
