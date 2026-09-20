@@ -7,3 +7,5 @@ psycopg[binary]
 langchain-core
 langchain-groq
 langchain-google-genai
+opentelemetry-sdk>=1.44,<2
+opentelemetry-exporter-otlp-proto-http>=1.44,<2
