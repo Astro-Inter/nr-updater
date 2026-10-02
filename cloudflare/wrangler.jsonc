@@ -1,0 +1,30 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "nr-updater",
+  "main": "worker.ts",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "workers_dev": true,
+  "observability": {
+    "enabled": true
+  },
+  "vars": {
+    "JOBS_ENABLED": "true",
+    "RODAR_CRON": "true",
+    "GROQ_MODEL": "llama-3.3-70b-versatile",
+    "GEMINI_MODEL": "gemini-2.5-flash"
+  },
+  "hyperdrive": [
+    {
+      "binding": "HYPERDRIVE",
+      "id": "2004ed1dbe4a460495e663c42f3b801f"
+    }
+  ],
+  "triggers": {
+    "crons": [
+      "0 3 1 */3 *"
+    ]
+  }
+}

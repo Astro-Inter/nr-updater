@@ -1,0 +1,22 @@
+{
+  "name": "nr-updater-cloudflare",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "node ./node_modules/typescript/bin/tsc --noEmit",
+    "deploy": "node ./node_modules/wrangler/bin/wrangler.js deploy",
+    "dev": "node ./node_modules/wrangler/bin/wrangler.js dev",
+    "test": "node --experimental-strip-types --test policy.test.ts"
+  },
+  "dependencies": {
+    "mongodb": "^6.20.0",
+    "pg": "^8.16.3"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20261001.1",
+    "@types/node": "22.20.3",
+    "@types/pg": "^8.23.1",
+    "typescript": "5.9.3",
+    "wrangler": "4.145.0"
+  }
+}
