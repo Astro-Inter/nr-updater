@@ -1,12 +1,13 @@
 import { MongoClient, type Document, type MongoClientOptions } from "mongodb";
 import { Pool } from "pg";
 import { NR_EXTRACTOR_PROMPT } from "./prompt.ts";
+import { queueGrafanaLog, type GrafanaEnv } from "./grafana-logs.ts";
 
 const JOB = "update-nrs";
 const CRON = "0 3 1 */3 *";
 const DEFAULT_URL = "https://www.gov.br/trabalho-e-emprego/pt-br/assuntos/inspecao-do-trabalho/seguranca-e-saude-no-trabalho/ctpp-nrs/normas-regulamentadoras-nrs";
 
-interface Env {
+interface Env extends GrafanaEnv {
   MONGO_URI: string;
   MONGO_DATABASE: string;
   GEMINI_API_KEY: string;
@@ -227,7 +228,7 @@ export async function runUpdate(env: Env, dryRun = false): Promise<Record<string
 }
 
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     if (request.method === "GET" && new URL(request.url).pathname === "/health") return Response.json({ service: "nr-updater", status: "ok" });
     if (!env.JOBS_TOKEN || request.headers.get("Authorization") !== `Bearer ${env.JOBS_TOKEN}`) return Response.json({ error: "unauthorized" }, { status: 401 });
     if (request.method !== "POST" || new URL(request.url).pathname !== "/run") return Response.json({ error: "not_found" }, { status: 404 });
@@ -235,18 +236,32 @@ export default {
     if (dryRun !== "true") return Response.json({ error: "manual_runs_must_be_dry_run" }, { status: 400 });
     try {
       const result = await runUpdate(env, true);
+      queueGrafanaLog(ctx, env, "nr-updater", "nr_update_validated", "INFO",
+        { status: "dry_run", found: result.found, updated: result.updated, failed: result.failed });
       return Response.json(result);
     } catch (error) {
       console.error(JSON.stringify({ event: "update_failed", error: String(error).slice(0, 500) }));
+      queueGrafanaLog(ctx, env, "nr-updater", "nr_update_failed", "ERROR", { operation: "manual_dry_run" });
       return Response.json({ error: "update_failed" }, { status: 500 });
     }
   },
-  async scheduled(event: ScheduledController, env: Env): Promise<void> {
+  async scheduled(event: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
     if (event.cron !== CRON || env.JOBS_ENABLED !== "true" || env.RODAR_CRON === "false") {
       console.log(JSON.stringify({ event: "cron_skipped", cron: event.cron }));
       return;
     }
-    const result = await runUpdate(env, false);
+    let result: Record<string, number | string>;
+    try {
+      result = await runUpdate(env, false);
+    } catch (error) {
+      queueGrafanaLog(ctx, env, "nr-updater", "nr_update_failed", "ERROR", { operation: "scheduled" });
+      throw error;
+    }
+    queueGrafanaLog(ctx, env, "nr-updater", "nr_update_finished",
+      result.status === "success" ? "INFO" : "ERROR", {
+        status: result.status, found: result.found, updated: result.updated, unchanged: result.unchanged,
+        failed: result.failed, scheduled_time: new Date(event.scheduledTime).toISOString(),
+      });
     console.log(JSON.stringify({ event: "update_finished", ...result, scheduledTime: event.scheduledTime }));
   },
 } satisfies ExportedHandler<Env>;

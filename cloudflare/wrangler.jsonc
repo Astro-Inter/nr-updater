@@ -13,6 +13,7 @@
   "vars": {
     "JOBS_ENABLED": "true",
     "RODAR_CRON": "true",
+    "GRAFANA_OTLP_ENDPOINT": "https://otlp-gateway-prod-sa-east-1.grafana.net/otlp",
     "GROQ_MODEL": "llama-3.3-70b-versatile",
     "GEMINI_MODEL": "gemini-2.5-flash"
   },

@@ -23,3 +23,7 @@ O workflow GitHub Actions permanece ativo até validar o cron no Worker e uma ex
 ## Limites gratuitos
 
 Não usa Workers Paid nem Cloudflare Containers. A rotina usa conexões HTTP para o site e modelos e conexões de banco via driver MongoDB e Hyperdrive. Confirme limites gratuitos dos provedores MongoDB, Groq, Gemini e Aiven separadamente; este repositório não muda seus planos.
+
+## Exportação Grafana
+
+O Worker envia resultados resumidos do Cron e da validação manual em OTLP/HTTP para GRAFANA_OTLP_ENDPOINT; GRAFANA_OTLP_HEADERS é um Secret. A exportação omite texto de NRs e credenciais e não interrompe a atualização quando falha.
