@@ -56,8 +56,8 @@ registre a revogação na descricao.
 3. CAMPO usabilidade
 ==================================================
 
-Valores permitidos, exatamente: "Funcionario" ou "Empresa".
-Nunca use "Mista", "Ambos", "Funcionario e Empresa" ou qualquer outro valor.
+Valores permitidos, exatamente: "Colaborador" ou "Empresa".
+Nunca use "Mista", "Ambos", "Colaborador e Empresa" ou qualquer outro valor.
 
 Este campo indica o tipo PRINCIPAL de acompanhamento que a NR exige no sistema:
 acompanhar a capacitação de cada trabalhador, ou acompanhar a conformidade da
@@ -66,16 +66,16 @@ organização.
 REGRA CENTRAL
 Se a NR condiciona a execução de alguma atividade a o trabalhador possuir,
 realizar ou renovar treinamento, curso, capacitação, qualificação, habilitação,
-formação, reciclagem ou atualização obrigatória, o valor é "Funcionario".
+formação, reciclagem ou atualização obrigatória, o valor é "Colaborador".
 Caso contrário, o valor é "Empresa".
 
 QUEM PAGA NÃO IMPORTA
 O fato de a EMPRESA ser a responsável por fornecer, promover, custear,
 organizar, registrar ou comprovar o treinamento NÃO muda a classificação. O que
 importa é se existe uma capacitação que o trabalhador precisa ter.
-  "A empresa deve capacitar os trabalhadores antes da atividade" -> "Funcionario"
+  "A empresa deve capacitar os trabalhadores antes da atividade" -> "Colaborador"
 
-INDICADORES DE "Funcionario"
+INDICADORES DE "Colaborador"
   "o trabalhador deve ser capacitado", "somente trabalhadores capacitados
   poderão", "o operador deve possuir treinamento", "deverá possuir habilitação",
   "treinamento inicial", "treinamento periódico", "reciclagem", "capacitação
@@ -100,15 +100,15 @@ O QUE NÃO CONTA COMO TREINAMENTO
 CONVIVÊNCIA DE OBRIGAÇÕES
   É normal uma NR ter, ao mesmo tempo, exigências de infraestrutura,
   documentação, gestão E treinamento. Isso não cria uma terceira categoria:
-  havendo capacitação obrigatória para o trabalhador, prevalece "Funcionario".
+  havendo capacitação obrigatória para o trabalhador, prevalece "Colaborador".
 
 ORDEM DE DECISÃO
-  1. A NR exige capacitação obrigatória para trabalhadores? SIM -> "Funcionario".
+  1. A NR exige capacitação obrigatória para trabalhadores? SIM -> "Colaborador".
   2. Senão, os requisitos são predominantemente de infraestrutura, equipamentos,
      documentação, gestão, programas, avaliações ou controles? SIM -> "Empresa".
   3. Em caso de dúvida, releia o texto procurando por treinamento, capacitação,
      curso, qualificação, habilitação, reciclagem, atualização e formação.
-     Havendo exigência ligada ao trabalhador -> "Funcionario". Senão -> "Empresa".
+     Havendo exigência ligada ao trabalhador -> "Colaborador". Senão -> "Empresa".
 
 ==================================================
 4. CAMPO tempo_reciclagem_meses
@@ -147,7 +147,7 @@ Antes de responder, confirme:
     entre si.
   - Nenhuma informação foi inventada ou trazida de fora do texto.
   - Nenhum ruído da página (menus, links, rodapés) entrou nos textos.
-  - usabilidade é exatamente "Funcionario" ou "Empresa".
+  - usabilidade é exatamente "Colaborador" ou "Empresa".
   - tempo_reciclagem_meses é um inteiro positivo, com fundamento no texto ou
     igual a 12 pelo padrão.
 """

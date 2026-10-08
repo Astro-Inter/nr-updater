@@ -37,6 +37,15 @@ def salvar_nr(nr_data: NrSchema) -> None:
     )
 
 
+def migrar_usabilidade_funcionario() -> int:
+    """Atualiza documentos existentes para o novo valor de usabilidade."""
+    resultado = collection.update_many(
+        {"usabilidade": "Funcionario"},
+        {"$set": {"usabilidade": "Colaborador"}},
+    )
+    return resultado.modified_count
+
+
 def listar_nrs_para_postgres() -> list[dict]:
     campos = ("nome", "revogada", "tempo_reciclagem_meses")
     return [
