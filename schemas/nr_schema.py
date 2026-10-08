@@ -2,7 +2,7 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
-Usabilidade = Literal["Funcionario", "Empresa"]
+Usabilidade = Literal["Colaborador", "Empresa"]
 
 
 class NrAnalise(BaseModel):
@@ -23,7 +23,7 @@ class NrAnalise(BaseModel):
         description="Intervalo em meses da reciclagem do treinamento principal. Use 12 quando a norma não definir periodicidade.",
     )
     usabilidade: Usabilidade = Field(
-        description="'Funcionario' se a norma exige capacitação obrigatória do trabalhador; caso contrário 'Empresa'."
+        description="'Colaborador' se a norma exige capacitação obrigatória do trabalhador; caso contrário 'Empresa'."
     )
 
 

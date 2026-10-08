@@ -22,7 +22,7 @@ interface Env extends GrafanaEnv {
 }
 interface Hyperdrive { connectionString: string }
 interface Norm { id: number; name: string; title: string; url: string; text: string; updatedAt: string; revoked: boolean }
-interface Analysis { descricao: string; objetivo: string; aplicabilidade: string; tempo_reciclagem_meses: number; usabilidade: "Funcionario" | "Empresa" }
+interface Analysis { descricao: string; objetivo: string; aplicabilidade: string; tempo_reciclagem_meses: number; usabilidade: "Colaborador" | "Empresa" }
 interface NrDocument extends Document { _id: number; ultima_atualizacao?: string; nome?: string; revogada?: boolean; tempo_reciclagem_meses?: number }
 
 function decode(value: string): string {
@@ -150,7 +150,7 @@ function parseAnalysis(value: unknown): Analysis {
     tempo_reciclagem_meses: Number(a.tempo_reciclagem_meses ?? 12),
     usabilidade: a.usabilidade,
   };
-  if (!result.descricao || !result.objetivo || !result.aplicabilidade || !Number.isInteger(result.tempo_reciclagem_meses) || result.tempo_reciclagem_meses < 1 || !["Funcionario", "Empresa"].includes(String(result.usabilidade))) throw new Error("Modelo retornou análise fora do schema");
+  if (!result.descricao || !result.objetivo || !result.aplicabilidade || !Number.isInteger(result.tempo_reciclagem_meses) || result.tempo_reciclagem_meses < 1 || !["Colaborador", "Empresa"].includes(String(result.usabilidade))) throw new Error("Modelo retornou análise fora do schema");
   return result as Analysis;
 }
 
@@ -193,6 +193,7 @@ export async function runUpdate(env: Env, dryRun = false): Promise<Record<string
   try {
     await mongo.connect();
     const collection = mongo.db(env.MONGO_DATABASE).collection<NrDocument>("nrs");
+    if (!dryRun) await collection.updateMany({ usabilidade: "Funcionario" }, { $set: { usabilidade: "Colaborador" } });
     const norms = await scrape(env);
     for (const norm of norms) {
       const current = await collection.findOne({ _id: norm.id, ultima_atualizacao: norm.updatedAt }, { projection: { _id: 1 } });

@@ -5,7 +5,12 @@ from time import monotonic
 
 from agents.agent import processar_nr
 from config import RODAR_CRON
-from database.nr import listar_nrs_para_postgres, precisa_atualizar, salvar_nr
+from database.nr import (
+    listar_nrs_para_postgres,
+    migrar_usabilidade_funcionario,
+    precisa_atualizar,
+    salvar_nr,
+)
 from database.postgres import executar_procedure
 from observability import configure_observability
 from schemas.nr_schema import NrSchema
@@ -39,6 +44,8 @@ def main():
                 extra={"operation": "update_nrs", "status": "skipped"},
             )
             return
+
+        migrar_usabilidade_funcionario()
 
         resultados = asyncio.run(executar_robo())
         if not resultados:
