@@ -6,7 +6,7 @@
     "check": "node ./node_modules/typescript/bin/tsc --noEmit",
     "deploy": "node ./node_modules/wrangler/bin/wrangler.js deploy",
     "dev": "node ./node_modules/wrangler/bin/wrangler.js dev",
-    "test": "node --experimental-strip-types --test policy.test.ts grafana-logs.test.ts"
+    "test": "node --experimental-strip-types --test policy.test.ts grafana-logs.test.ts usabilidade.test.ts"
   },
   "dependencies": {
     "mongodb": "^6.20.0",

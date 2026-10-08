@@ -150,7 +150,7 @@ function parseAnalysis(value: unknown): Analysis {
     tempo_reciclagem_meses: Number(a.tempo_reciclagem_meses ?? 12),
     usabilidade: a.usabilidade,
   };
-  if (!result.descricao || !result.objetivo || !result.aplicabilidade || !Number.isInteger(result.tempo_reciclagem_meses) || result.tempo_reciclagem_meses < 1 || !["Colaborador", "Empresa"].includes(String(result.usabilidade))) throw new Error("Modelo retornou análise fora do schema");
+  if (!result.descricao || !result.objetivo || !result.aplicabilidade || !Number.isInteger(result.tempo_reciclagem_meses) || result.tempo_reciclagem_meses < 1 || typeof result.usabilidade !== "string" || !["Colaborador", "Empresa"].includes(result.usabilidade)) throw new Error("Modelo retornou análise fora do schema");
   return result as Analysis;
 }
 
