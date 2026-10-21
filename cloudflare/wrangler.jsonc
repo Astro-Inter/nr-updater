@@ -8,7 +8,16 @@
   ],
   "workers_dev": true,
   "observability": {
-    "enabled": true
+    "enabled": true,
+    "logs": {
+      "enabled": true,
+      "invocation_logs": false,
+      "head_sampling_rate": 1,
+      "persist": false,
+      "destinations": [
+        "astro-grafana-logs"
+      ]
+    }
   },
   "vars": {
     "JOBS_ENABLED": "true",
