@@ -22,9 +22,9 @@ def conectar():
 
 
 def executar_procedure(procedure: str, dados) -> None:
-    """Chama uma procedure que recebe um único parâmetro JSON."""
+    """Chama uma procedure que recebe JSON serializado em um parâmetro text."""
     with conectar() as conn, conn.cursor() as cur:
         cur.execute(
-            f"CALL {procedure}(%s)",
+            f"CALL {procedure}(%s::text)",
             (json.dumps(dados, ensure_ascii=False),),
         )

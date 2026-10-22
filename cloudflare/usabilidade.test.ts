@@ -17,6 +17,7 @@ const analysis = (usabilidade: unknown) => ({
 function setup(t: TestContext, documents: Array<Record<string, unknown>> = [], groqValue: unknown = "Colaborador", geminiValue: unknown = "Colaborador") {
   const calls: Array<{ url: string; body: any }> = [];
   const migrations: unknown[] = [];
+  const sqlCalls: Array<{ sql: string; values?: unknown[] }> = [];
   const writes: unknown[] = [];
   const collection = {
     async updateMany(filter: Record<string, unknown>, update: { $set: Record<string, unknown> }) {
@@ -37,7 +38,7 @@ function setup(t: TestContext, documents: Array<Record<string, unknown>> = [], g
   t.mock.method(MongoClient.prototype, "connect", async () => {});
   t.mock.method(MongoClient.prototype, "close", async () => {});
   t.mock.method(MongoClient.prototype, "db", () => ({ collection: () => collection }));
-  t.mock.method(Pool.prototype, "connect", async () => ({ query: async () => {}, release() {} }));
+  t.mock.method(Pool.prototype, "connect", async () => ({ query: async (sql: string, values?: unknown[]) => { sqlCalls.push({ sql, values }); }, release() {} }));
   t.mock.method(Pool.prototype, "end", async () => {});
   t.mock.method(globalThis, "fetch", async (input: string, init?: RequestInit) => {
     const url = String(input);
@@ -54,7 +55,7 @@ function setup(t: TestContext, documents: Array<Record<string, unknown>> = [], g
     GROQ_API_KEY: "test-key", GEMINI_API_KEY: "test-key",
     URL_NRS: "https://example.test/nrs", HYPERDRIVE: { connectionString: "postgresql://localhost/test" },
   };
-  return { documents, calls, migrations, writes, env };
+  return { documents, calls, migrations, writes, sqlCalls, env };
 }
 
 for (const category of ["Colaborador", "Empresa"]) {
@@ -120,4 +121,15 @@ test("dry_run não migra, não grava e não chama os modelos", async (t) => {
   assert.deepEqual(state.migrations, []);
   assert.deepEqual(state.writes, []);
   assert.deepEqual(state.calls, []);
+});
+
+
+test("sincroniza NRs com a assinatura text de ler_json_nr", async (t) => {
+  const state = setup(t, [{ _id: 1, nome: "Segurança", revogada: false,
+    tempo_reciclagem_meses: 12, ultima_atualizacao: updatedAt }]);
+  await runUpdate(state.env);
+  assert.deepEqual(state.sqlCalls, [{
+    sql: "CALL ler_json_nr($1::text)",
+    values: [JSON.stringify([{ id: "1", nome: "Segurança", revogada: false, tempo_reciclagem_mes: 12 }])],
+  }]);
 });

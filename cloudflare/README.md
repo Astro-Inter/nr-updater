@@ -27,3 +27,6 @@ Não usa Workers Paid nem Cloudflare Containers. A rotina usa conexões HTTP par
 ## Exportação Grafana
 
 O Worker envia resultados resumidos do Cron e da validação manual em OTLP/HTTP para GRAFANA_OTLP_ENDPOINT; GRAFANA_OTLP_HEADERS é um Secret. A exportação omite texto de NRs e credenciais e não interrompe a atualização quando falha.
+
+A sincronização chama `ler_json_nr(text)` com JSON serializado. O parâmetro
+é enviado como `text`, conforme a assinatura documentada no banco.

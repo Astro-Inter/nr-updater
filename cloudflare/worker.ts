@@ -215,7 +215,7 @@ export async function runUpdate(env: Env, dryRun = false): Promise<Record<string
       const postgresRows = await collection.find({}, { projection: { nome: 1, revogada: 1, tempo_reciclagem_meses: 1 } }).toArray();
       const payload = postgresRows.map((row) => ({ id: String(row._id), nome: row.nome ?? null, revogada: row.revogada ?? null, tempo_reciclagem_mes: row.tempo_reciclagem_meses ?? null }));
       const client = await pg.connect();
-      try { await client.query("CALL ler_json_nr($1::json)", [JSON.stringify(payload)]); }
+      try { await client.query("CALL ler_json_nr($1::text)", [JSON.stringify(payload)]); }
       finally { client.release(); }
     } else {
       const client = await pg.connect();
