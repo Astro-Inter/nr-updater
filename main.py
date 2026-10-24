@@ -45,6 +45,12 @@ def main():
             )
             return
 
+        executar_procedure("ler_json_nr", listar_nrs_para_postgres())
+        log.info(
+            "Sincronização das NRs aprovadas com o PostgreSQL concluída.",
+            extra={"operation": "sync_postgres", "status": "success"},
+        )
+
         migrar_usabilidade_funcionario()
 
         resultados = asyncio.run(executar_robo())
@@ -60,7 +66,7 @@ def main():
             nr = montar_nr(nr_id, dados)
 
             if not precisa_atualizar(nr.id, nr.ultima_atualizacao):
-                log.info("NR-%s já está atualizada.", nr.id)
+                log.info("NR-%s já está aprovada ou aguardando revisão nesta versão.", nr.id)
                 continue
 
             try:
@@ -77,7 +83,7 @@ def main():
             salvar_nr(nr)
             atualizadas += 1
             log.info(
-                "NR-%s salva (%s, reciclagem %s meses).",
+                "NR-%s salva em nrs_pendentes para revisão (%s, reciclagem %s meses).",
                 nr.id,
                 nr.usabilidade,
                 nr.tempo_reciclagem_meses,
@@ -95,11 +101,6 @@ def main():
             },
         )
 
-        executar_procedure("ler_json_nr", listar_nrs_para_postgres())
-        log.info(
-            "Sincronização com o PostgreSQL concluída.",
-            extra={"operation": "sync_postgres", "status": "success"},
-        )
     except Exception:
         log.exception(
             "Falha não tratada na atualização das NRs.",

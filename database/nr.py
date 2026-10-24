@@ -5,6 +5,7 @@ from schemas.nr_schema import NrSchema
 from .mongodb import db
 
 collection = db["nrs"]
+pending_collection = db["nrs_pendentes"]
 
 # Campos gravados no Mongo (o restante do schema é auxiliar).
 CAMPOS_PERSISTIDOS = (
@@ -20,14 +21,17 @@ CAMPOS_PERSISTIDOS = (
 
 
 def precisa_atualizar(id: int, data_atualizacao: str) -> bool:
-    """True quando a NR ainda não existe ou mudou de data de atualização."""
-    return collection.find_one(
-        {"_id": id, "ultima_atualizacao": data_atualizacao}, {"_id": 1}
-    ) is None
+    """Analisa apenas versões que não estão aprovadas nem aguardando revisão."""
+    query = {"_id": id, "ultima_atualizacao": data_atualizacao}
+    return (
+        collection.find_one(query, {"_id": 1}) is None
+        and pending_collection.find_one(query, {"_id": 1}) is None
+    )
 
 
 def salvar_nr(nr_data: NrSchema) -> None:
-    collection.update_one(
+    """Salva o candidato para revisão, sem publicar na collection nrs."""
+    pending_collection.update_one(
         {"_id": nr_data.id},
         {
             "$set": nr_data.model_dump(include=set(CAMPOS_PERSISTIDOS)),
@@ -38,8 +42,8 @@ def salvar_nr(nr_data: NrSchema) -> None:
 
 
 def migrar_usabilidade_funcionario() -> int:
-    """Atualiza documentos existentes para o novo valor de usabilidade."""
-    resultado = collection.update_many(
+    """Normaliza apenas candidatos; documentos aprovados não são modificados."""
+    resultado = pending_collection.update_many(
         {"usabilidade": "Funcionario"},
         {"$set": {"usabilidade": "Colaborador"}},
     )
