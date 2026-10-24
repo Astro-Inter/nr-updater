@@ -4,6 +4,7 @@ import os
 import re
 import traceback
 from datetime import datetime, timezone
+from urllib.parse import urlsplit, urlunsplit
 
 from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
 from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
@@ -47,6 +48,18 @@ def _resource_attributes() -> dict[str, str]:
     if service_version:
         attributes["service.version"] = service_version[:40]
     return attributes
+
+
+def _logs_endpoint(endpoint: str) -> str:
+    """Aceita o gateway OTLP base ou a URL completa do sinal de logs."""
+    parsed = urlsplit(endpoint.strip())
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise ValueError("OTEL_EXPORTER_OTLP_ENDPOINT deve ser uma URL HTTP(S) válida")
+
+    path = parsed.path.rstrip("/")
+    if not path.endswith("/v1/logs"):
+        path = f"{path}/v1/logs"
+    return urlunsplit((parsed.scheme, parsed.netloc, path, parsed.query, parsed.fragment))
 
 
 class SensitiveDataFilter(logging.Filter):
@@ -181,7 +194,7 @@ def configure_observability() -> Observability:
             resource=Resource.create(resource_attributes), shutdown_on_exit=False
         )
         logger_provider.add_log_record_processor(
-            BatchLogRecordProcessor(OTLPLogExporter())
+            BatchLogRecordProcessor(OTLPLogExporter(endpoint=_logs_endpoint(endpoint)))
         )
         otlp_handler = LoggingHandler(
             level=logging.NOTSET, logger_provider=logger_provider

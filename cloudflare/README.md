@@ -4,7 +4,7 @@ O Worker substitui o Chromium/Playwright do projeto por coleta HTTP da página o
 
 ## Execução
 
-O cron preserva a agenda atual do GitHub Actions: `0 3 1 */3 *` (03:00 UTC no primeiro dia de janeiro, abril, julho e outubro). `JOBS_ENABLED` permanece `false` até configurar os Secrets e validar a execução de leitura. `RODAR_CRON` mantém o controle funcional do projeto.
+O cron executa diariamente com a expressão `0 3 * * *` (03:00 UTC, meia-noite no horário de Brasília). `JOBS_ENABLED` e `RODAR_CRON` mantêm o controle funcional do projeto.
 
 Os segredos exigidos são `GROQ_API_KEY`, `GEMINI_API_KEY`, `MONGO_URI`, `MONGO_DATABASE` e `JOBS_TOKEN`. O PostgreSQL usa o binding Hyperdrive definido em `wrangler.jsonc`, que aponta para o banco `astro_2` já configurado na conta. Não registre valores em arquivos do repositório.
 
@@ -18,7 +18,7 @@ npm run check
 
 `GET /health` retorna apenas a saúde do serviço. A rota `POST /run?dry_run=true` exige `Authorization: Bearer <JOBS_TOKEN>` e sempre executa sem gravar nem chamar modelos de IA; também valida uma consulta `SELECT 1` pelo Hyperdrive. Só o Cron pode executar atualizações e sincronizar a procedure PostgreSQL `ler_json_nr`.
 
-O workflow GitHub Actions permanece ativo até validar o cron no Worker e uma execução equivalente. Desative-o depois da validação para evitar agendadores duplicados. O cron é trimestral, portanto a primeira execução futura ocorrerá na próxima data correspondente.
+Caso exista outro agendador para a mesma rotina, desative-o depois da validação para evitar execuções duplicadas.
 
 ## Limites gratuitos
 
