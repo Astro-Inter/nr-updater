@@ -4,7 +4,7 @@ import { NR_EXTRACTOR_PROMPT } from "./prompt.ts";
 import { queueGrafanaLog, type GrafanaEnv } from "./grafana-logs.ts";
 
 const JOB = "update-nrs";
-const CRON = "0 3 1 */3 *";
+export const CRON = "0 3 * * *";
 const DEFAULT_URL = "https://www.gov.br/trabalho-e-emprego/pt-br/assuntos/inspecao-do-trabalho/seguranca-e-saude-no-trabalho/ctpp-nrs/normas-regulamentadoras-nrs";
 
 interface Env extends GrafanaEnv {

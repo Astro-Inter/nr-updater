@@ -8,12 +8,29 @@ from unittest.mock import patch
 from observability import (
     JsonFormatter,
     SensitiveDataFilter,
+    _logs_endpoint,
     _resource_attributes,
     configure_observability,
 )
 
 
 class ObservabilityTest(unittest.TestCase):
+    def test_logs_endpoint_appends_signal_path_to_base_endpoint(self):
+        self.assertEqual(
+            _logs_endpoint("https://otlp-gateway.example.net/otlp"),
+            "https://otlp-gateway.example.net/otlp/v1/logs",
+        )
+
+    def test_logs_endpoint_does_not_duplicate_existing_signal_path(self):
+        self.assertEqual(
+            _logs_endpoint("https://otlp-gateway.example.net/otlp/v1/logs"),
+            "https://otlp-gateway.example.net/otlp/v1/logs",
+        )
+
+    def test_logs_endpoint_rejects_invalid_url(self):
+        with self.assertRaisesRegex(ValueError, "URL HTTP"):
+            _logs_endpoint("otlp-gateway.example.net/otlp")
+
     def test_resource_has_stable_service_metadata(self):
         with patch.dict(os.environ, {}, clear=True):
             attributes = _resource_attributes()

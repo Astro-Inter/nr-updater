@@ -12,6 +12,11 @@ OTEL_EXPORTER_OTLP_ENDPOINT=https://otlp-gateway-<regiao>.grafana.net/otlp
 OTEL_EXPORTER_OTLP_HEADERS=Authorization=Basic%20<credencial>
 ```
 
+O endpoint recomendado é o gateway-base copiado do portal do Grafana Cloud,
+terminado em `/otlp`. A URL completa terminada em `/otlp/v1/logs` também é
+aceita. Não use o endpoint de push do Loki (`/loki/api/v1/push`), pois ele não é
+um endpoint OTLP.
+
 Não salve valores reais no repositório. Em desenvolvimento, copie
 `.env.example` para `.env`; sem as credenciais, a aplicação funciona normalmente
 usando apenas o console. Os recursos enviados têm `service.name=nr-updater`, além
