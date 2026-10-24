@@ -4,7 +4,7 @@ import { NR_EXTRACTOR_PROMPT } from "./prompt.ts";
 import { queueGrafanaLog, type GrafanaEnv } from "./grafana-logs.ts";
 
 const JOB = "update-nrs";
-const CRON = "0 3 1 */3 *";
+export const CRON = "0 3 * * *";
 const DEFAULT_URL = "https://www.gov.br/trabalho-e-emprego/pt-br/assuntos/inspecao-do-trabalho/seguranca-e-saude-no-trabalho/ctpp-nrs/normas-regulamentadoras-nrs";
 
 interface Env extends GrafanaEnv {
@@ -193,15 +193,27 @@ export async function runUpdate(env: Env, dryRun = false): Promise<Record<string
   try {
     await mongo.connect();
     const collection = mongo.db(env.MONGO_DATABASE).collection<NrDocument>("nrs");
-    if (!dryRun) await collection.updateMany({ usabilidade: "Funcionario" }, { $set: { usabilidade: "Colaborador" } });
+    // Sync approved data before scraping/AI so their failures cannot block publication.
+    if (!dryRun) {
+      const postgresRows = await collection.find({}, { projection: { nome: 1, revogada: 1, tempo_reciclagem_meses: 1 } }).toArray();
+      const payload = postgresRows.map((row) => ({ id: String(row._id), nome: row.nome ?? null, revogada: row.revogada ?? null, tempo_reciclagem_mes: row.tempo_reciclagem_meses ?? null }));
+      const client = await pg.connect();
+      try { await client.query("CALL ler_json_nr($1::text)", [JSON.stringify(payload)]); }
+      finally { client.release(); }
+      console.log(JSON.stringify({ event: "postgres_sync_finished", status: "success", count: payload.length }));
+    }
+    const pendingCollection = mongo.db(env.MONGO_DATABASE).collection<NrDocument>("nrs_pendentes");
+    if (!dryRun) await pendingCollection.updateMany({ usabilidade: "Funcionario" }, { $set: { usabilidade: "Colaborador" } });
     const norms = await scrape(env);
     for (const norm of norms) {
       const current = await collection.findOne({ _id: norm.id, ultima_atualizacao: norm.updatedAt }, { projection: { _id: 1 } });
       if (current) { unchanged++; continue; }
+      const pending = await pendingCollection.findOne({ _id: norm.id, ultima_atualizacao: norm.updatedAt }, { projection: { _id: 1 } });
+      if (pending) { unchanged++; continue; }
       if (dryRun) { updated++; continue; }
       try {
         const analysis = await analyze(norm.text, env);
-        await collection.updateOne({ _id: norm.id }, {
+        await pendingCollection.updateOne({ _id: norm.id }, {
           $set: { nome: norm.name, revogada: norm.revoked, ...analysis, ultima_atualizacao: norm.updatedAt },
           $setOnInsert: { data_criacao: new Date() },
         }, { upsert: true });
@@ -211,13 +223,7 @@ export async function runUpdate(env: Env, dryRun = false): Promise<Record<string
         console.error(JSON.stringify({ event: "norm_update_failed", id: norm.id, error: String(error).slice(0, 300) }));
       }
     }
-    if (!dryRun) {
-      const postgresRows = await collection.find({}, { projection: { nome: 1, revogada: 1, tempo_reciclagem_meses: 1 } }).toArray();
-      const payload = postgresRows.map((row) => ({ id: String(row._id), nome: row.nome ?? null, revogada: row.revogada ?? null, tempo_reciclagem_mes: row.tempo_reciclagem_meses ?? null }));
-      const client = await pg.connect();
-      try { await client.query("CALL ler_json_nr($1::json)", [JSON.stringify(payload)]); }
-      finally { client.release(); }
-    } else {
+    if (dryRun) {
       const client = await pg.connect();
       try { await client.query("SELECT 1"); }
       finally { client.release(); }

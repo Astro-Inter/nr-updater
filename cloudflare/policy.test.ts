@@ -1,6 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { cleanName, extractText, listNormLinks, updatedDate } from "./worker.ts";
+import { CRON, cleanName, extractText, listNormLinks, updatedDate } from "./worker.ts";
+
+test("runs the update every day at 03:00 UTC", () => {
+  assert.equal(CRON, "0 3 * * *");
+});
 
 test("only NR links from the official list are returned and duplicate URLs collapse", () => {
   const html = `<a class="internal-link" href="/nr-1">NR-1 - Disposições Gerais</a>

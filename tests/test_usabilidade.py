@@ -47,7 +47,7 @@ class UsabilidadeTest(unittest.TestCase):
         config.GROQ_MODEL = "llama-3.3-70b-versatile"
         config.GEMINI_MODEL = "gemini-2.5-flash"
         mongodb = types.ModuleType("database.mongodb")
-        mongodb.db = {"nrs": MagicMock()}
+        mongodb.db = {"nrs": MagicMock(), "nrs_pendentes": MagicMock()}
         with patch.dict(sys.modules, {"config": config, "database.mongodb": mongodb}):
             cls.agent = importlib.import_module("agents.agent")
             cls.database = importlib.import_module("database.nr")
@@ -67,7 +67,7 @@ class UsabilidadeTest(unittest.TestCase):
                 self.assertEqual(schema["properties"]["usabilidade"]["enum"], ["Colaborador", "Empresa"])
                 nr = NrSchema(id=1, nome="NR", texto="Texto", ultima_atualizacao="08/10/2026")
                 nr.aplicar_analise(analise)
-                with patch.object(self.database, "collection") as collection:
+                with patch.object(self.database, "pending_collection") as collection:
                     self.database.salvar_nr(nr)
                     payload = collection.update_one.call_args.args[1]["$set"]
                     self.assertEqual(payload["usabilidade"], categoria)
@@ -120,12 +120,35 @@ class UsabilidadeTest(unittest.TestCase):
                     changed += 1
             return types.SimpleNamespace(modified_count=changed)
 
-        with patch.object(self.database, "collection") as collection:
+        with patch.object(self.database, "pending_collection") as collection:
             collection.update_many.side_effect = update_many
             self.assertEqual(self.database.migrar_usabilidade_funcionario(), 1)
             self.assertEqual(self.database.migrar_usabilidade_funcionario(), 0)
         self.assertEqual([doc["usabilidade"] for doc in documents], ["Colaborador", "Empresa", "Colaborador"])
         self.assertTrue(all(doc["ultima_atualizacao"] == "01/01/2026" for doc in documents))
+
+    def test_update_checks_both_approved_and_pending_versions(self):
+        for approved, pending, expected in ((None, None, True), ({"_id": 1}, None, False), (None, {"_id": 1}, False)):
+            with self.subTest(approved=approved, pending=pending), patch.object(
+                self.database, "collection"
+            ) as collection, patch.object(self.database, "pending_collection") as candidates:
+                collection.find_one.return_value = approved
+                candidates.find_one.return_value = pending
+                self.assertEqual(self.database.precisa_atualizar(1, "08/10/2026"), expected)
+                collection.update_one.assert_not_called()
+
+    def test_candidate_write_preserves_approved_collection_and_schema(self):
+        nr = NrSchema(id=1, nome="NR", texto="Texto fonte", ultima_atualizacao="08/10/2026")
+        nr.aplicar_analise(NrAnalise(**dados_analise("Colaborador")))
+        with patch.object(self.database, "collection") as approved, patch.object(
+            self.database, "pending_collection"
+        ) as pending:
+            self.database.salvar_nr(nr)
+            approved.update_one.assert_not_called()
+            payload = pending.update_one.call_args.args[1]
+            self.assertEqual(set(payload["$set"]), set(self.database.CAMPOS_PERSISTIDOS))
+            self.assertIn("data_criacao", payload["$setOnInsert"])
+            self.assertNotIn("texto", payload["$set"])
 
 
 if __name__ == "__main__":
