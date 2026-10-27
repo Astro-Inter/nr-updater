@@ -1,4 +1,5 @@
 import { observe, diagnostic } from "./diagnostics.ts";
+import { analyzeWithLuna } from "./openrouter.ts";
 import { MongoClient, type Document, type MongoClientOptions } from "mongodb";
 import { Pool } from "pg";
 import { NR_EXTRACTOR_PROMPT } from "./prompt.ts";
@@ -11,10 +12,7 @@ const DEFAULT_URL = "https://www.gov.br/trabalho-e-emprego/pt-br/assuntos/inspec
 interface Env extends GrafanaEnv {
   MONGO_URI: string;
   MONGO_DATABASE: string;
-  GEMINI_API_KEY: string;
-  GROQ_API_KEY: string;
-  GEMINI_MODEL?: string;
-  GROQ_MODEL?: string;
+  OPENROUTER_API_KEY: string;
   URL_NRS?: string;
   RODAR_CRON?: string;
   JOBS_ENABLED?: string;
@@ -156,30 +154,11 @@ function parseAnalysis(value: unknown): Analysis {
 }
 
 async function analyze(text: string, env: Env): Promise<Analysis> {
-  const content = text.slice(0, 120_000);
-  try {
-    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST", headers: { Authorization: `Bearer ${env.GROQ_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model: env.GROQ_MODEL || "llama-3.3-70b-versatile", temperature: 0, response_format: { type: "json_object" }, messages: [{ role: "system", content: NR_EXTRACTOR_PROMPT }, { role: "user", content }] }),
-    });
-    if (!response.ok) throw Object.assign(new Error("Groq HTTP failure"), { code: `GROQ_HTTP_${response.status}` });
-    const data = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
-    return parseAnalysis(data.choices?.[0]?.message?.content);
-  } catch (groqError) {
-    console.warn(JSON.stringify({ event: "analysis_fallback", provider: "gemini", ...diagnostic(groqError) }));
-    const model = env.GEMINI_MODEL || "gemini-2.5-flash";
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(env.GEMINI_API_KEY)}`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ systemInstruction: { parts: [{ text: NR_EXTRACTOR_PROMPT }] }, contents: [{ role: "user", parts: [{ text: content }] }], generationConfig: { temperature: 0, responseMimeType: "application/json" } }),
-    });
-    if (!response.ok) throw Object.assign(new Error("Gemini HTTP failure"), { code: `GEMINI_HTTP_${response.status}` });
-    const data = await response.json() as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> };
-    return parseAnalysis(data.candidates?.[0]?.content?.parts?.map((part) => part.text ?? "").join(""));
-  }
+  return analyzeWithLuna(text, NR_EXTRACTOR_PROMPT, env.OPENROUTER_API_KEY, parseAnalysis);
 }
 
 function mustHave(env: Env): void {
-  for (const key of ["MONGO_URI", "MONGO_DATABASE", "GROQ_API_KEY", "GEMINI_API_KEY"] as const) {
+  for (const key of ["MONGO_URI", "MONGO_DATABASE", "OPENROUTER_API_KEY"] as const) {
     if (!env[key]) throw new Error(`Secret obrigatório ausente: ${key}`);
   }
   if (!env.HYPERDRIVE?.connectionString) throw new Error("Binding Hyperdrive ausente");

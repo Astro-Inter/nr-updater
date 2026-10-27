@@ -25,6 +25,7 @@ function kind(error: unknown): string {
 function code(error: unknown): string {
   if (error && typeof error === "object" && "code" in error) {
     const value = String(error.code);
+    if (/^(?:openrouter_(?:http_[45]\d{2}|unavailable|invalid_response|response_too_large)|missing_openrouter_api_key|empty_nr_text|nr_text_too_large)$/.test(value)) return value;
     if (/^(?:[0-9A-Z]{5}|E[A-Z_]{2,30}|[A-Z][A-Z0-9_]{1,47}|\d{1,6})$/.test(value)) return value;
   }
   if (error instanceof Error && /^(TimeoutError|AbortError)$/.test(error.name)) return error.name;

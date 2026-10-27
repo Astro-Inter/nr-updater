@@ -1,6 +1,14 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { diagnostic, observe } from "./cloudflare/diagnostics.ts";
+import { OpenRouterError } from "./cloudflare/openrouter.ts";
+
+test("preserva códigos controlados do OpenRouter sem aceitar texto arbitrário", () => {
+  for (const code of ["openrouter_http_429", "openrouter_http_503", "openrouter_invalid_response", "openrouter_unavailable"]) {
+    assert.equal(diagnostic(new OpenRouterError(code)).error_code, code);
+  }
+  assert.equal(diagnostic(new OpenRouterError("openrouter_private_payload")).error_code, "UNCLASSIFIED_ERROR");
+});
 
 test("preserva etapa e SQLSTATE sem mensagem, valores ou caminho local", async () => {
   const failure = Object.assign(new Error("password=secret email=pessoa@example.com SELECT private"), { code: "53300" });

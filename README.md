@@ -66,3 +66,48 @@ de atributos por sublinhados, por isso `service.name` aparece como
 ## Diagnóstico operacional
 
 Consulte [os campos e limites dos novos diagnósticos](docs/observability-diagnostics.md) para investigar falhas por requisição ou execução no Grafana.
+
+## OpenRouter
+
+Python e Cloudflare usam `openai/gpt-6-luna` em uma camada de infraestrutura,
+com `OPENROUTER_API_KEY` exclusivamente no backend. Copie `.env.example` para
+`.env` no Python ou `cloudflare/.dev.vars.example` para `.dev.vars` no Worker e
+preencha os valores localmente. Nunca versione esses arquivos. Groq/Gemini e
+seus SDKs deixaram de ser dependências operacionais.
+
+A análise exige descrições e JSON completo; Jev não oferece esse contrato e não
+é chamado. Não há embeddings neste serviço. Cada NR nova/alterada exige uma
+chamada, com no máximo duas tentativas no total. Há timeout de 30s, validação dos
+campos e enum, rejeição de ferramentas, respostas vazias e truncadas. Truncamento
+permite nova tentativa com orçamento maior; timeouts/429/5xx repetem uma vez e
+401/402 não repetem. Retry-After longo adia. Falhas não geram candidato inválido.
+Textos acima de 120 mil caracteres falham explicitamente para preservar o texto
+integral; a norma requer tratamento manual/divisão validada antes de nova tentativa.
+Logs incluem apenas modelo e consumo numérico, sem texto da norma ou chave.
+A geração mantém `nrs_pendentes`; aprovação, autorização e sincronização dos
+dados aprovados continuam sob controle da aplicação.
+
+Validação sem credenciais e sem chamadas reais:
+
+```sh
+pip install -r requirements.txt
+python -m unittest discover -s tests -v
+cd cloudflare
+npm ci
+npm run check
+npm test
+npm run build
+```
+
+O workflow de validação não faz deploy. Publicação e configuração no Cloudflare
+estão descritas em [cloudflare/README.md](cloudflare/README.md).
+
+Referências: [Chat](https://openrouter.ai/docs/api/api-reference/chat/send-chat-completion-request),
+[Luna](https://openrouter.ai/openai/gpt-6-luna),
+[secrets e versões](https://developers.cloudflare.com/workers/configuration/secrets/).
+
+Validação desta migração (27/10/2026): 20 testes Python e 33 testes do Worker,
+typecheck e bundle `--dry-run` passaram. Uma chamada sintética real validou o
+schema; custo informado pelo OpenRouter: US$ 0,000314425. Nenhum banco foi
+alterado. A execução com fontes completas, Mongo e Hyperdrive em homologação
+permanece necessária antes da publicação autorizada.

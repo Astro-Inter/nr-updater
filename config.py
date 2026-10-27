@@ -7,13 +7,8 @@ dotenv.load_dotenv()
 # Execução: false => o robô não roda.
 RODAR_CRON = os.getenv("RODAR_CRON", "true").strip().lower() in ("true", "1", "sim", "yes")
 
-# API keys
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-
-# Modelos
-GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+# Provedor unico de IA; o modelo e fixado na camada de infraestrutura.
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 
 # MongoDB
 MONGO_URI = os.getenv("MONGO_URI")

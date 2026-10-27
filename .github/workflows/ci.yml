@@ -1,0 +1,31 @@
+name: Validar serviço
+on:
+  pull_request:
+  push:
+    branches: [main, 'feat/**', 'fix/**']
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: python -m unittest discover -s tests -v
+        env:
+          PYTHON_DOTENV_DISABLED: '1'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: cloudflare/package-lock.json
+      - run: npm ci
+        working-directory: cloudflare
+      - run: npm run check && npm test && npm run build
+        working-directory: cloudflare
+        env:
+          WRANGLER_SEND_METRICS: 'false'
