@@ -63,6 +63,10 @@ No Grafana Cloud, abra **Drilldown > Logs** (ou **Explore > Logs**) e filtre por
 de atributos por sublinhados, por isso `service.name` aparece como
 `service_name`.
 
+## Diagnóstico operacional
+
+Consulte [os campos e limites dos novos diagnósticos](docs/observability-diagnostics.md) para investigar falhas por requisição ou execução no Grafana.
+
 ## OpenRouter
 
 Python e Cloudflare usam `openai/gpt-6-luna` em uma camada de infraestrutura,
