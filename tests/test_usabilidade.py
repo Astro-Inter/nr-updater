@@ -6,10 +6,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from langchain_core.messages import AIMessage
-from langchain_core.outputs import ChatGeneration, ChatResult
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_groq import ChatGroq
+import httpx
 from pydantic import ValidationError
 
 from agents.prompt import NR_EXTRACTOR_PROMPT
@@ -26,16 +23,10 @@ def dados_analise(usabilidade):
     }
 
 
-def resposta_groq(usabilidade):
-    message = AIMessage(content="", tool_calls=[{
-        "name": "NrAnalise", "args": dados_analise(usabilidade), "id": "test-call",
-    }])
-    return ChatResult(generations=[ChatGeneration(message=message)])
-
-
-def resposta_gemini(usabilidade):
-    message = AIMessage(content=json.dumps(dados_analise(usabilidade)))
-    return ChatResult(generations=[ChatGeneration(message=message)])
+def resposta_luna(usabilidade):
+    return httpx.Response(200, json={"choices": [{"finish_reason": "stop", "message": {
+        "content": json.dumps(dados_analise(usabilidade)),
+    }}]})
 
 
 class UsabilidadeTest(unittest.TestCase):
@@ -43,47 +34,37 @@ class UsabilidadeTest(unittest.TestCase):
     def setUpClass(cls):
         # Chaves fictícias e banco simulado impedem acesso aos serviços reais.
         config = types.ModuleType("config")
-        config.GROQ_API_KEY = config.GEMINI_API_KEY = "test-key"
-        config.GROQ_MODEL = "llama-3.3-70b-versatile"
-        config.GEMINI_MODEL = "gemini-2.5-flash"
+        config.OPENROUTER_API_KEY = "test-key"
         mongodb = types.ModuleType("database.mongodb")
         mongodb.db = {"nrs": MagicMock(), "nrs_pendentes": MagicMock()}
         with patch.dict(sys.modules, {"config": config, "database.mongodb": mongodb}):
             cls.agent = importlib.import_module("agents.agent")
             cls.database = importlib.import_module("database.nr")
 
-    def test_agent_passes_new_enum_to_groq_and_saves_both_categories(self):
+    def test_luna_uses_json_contract_and_saves_both_categories(self):
         for categoria in ("Colaborador", "Empresa"):
-            with self.subTest(categoria=categoria), patch.object(
-                ChatGroq, "_generate", return_value=resposta_groq(categoria)
-            ) as groq, patch.object(ChatGoogleGenerativeAI, "_generate") as gemini:
+            with self.subTest(categoria=categoria), patch("httpx.Client.post", return_value=resposta_luna(categoria)) as request:
                 analise = self.agent.processar_nr("Texto de uma NR para análise.")
                 self.assertIsInstance(analise, NrAnalise)
                 self.assertEqual(analise.usabilidade, categoria)
-                gemini.assert_not_called()
-                args, kwargs = groq.call_args
-                self.assertEqual(args[0][0].content, NR_EXTRACTOR_PROMPT)
-                schema = kwargs["tools"][0]["function"]["parameters"]
-                self.assertEqual(schema["properties"]["usabilidade"]["enum"], ["Colaborador", "Empresa"])
+                self.assertEqual(request.call_args.args[0], "https://openrouter.ai/api/v1/chat/completions")
+                body = request.call_args.kwargs["json"]
+                self.assertEqual(body["model"], "openai/gpt-6-luna")
+                self.assertEqual(body["response_format"], {"type": "json_object"})
+                self.assertTrue(body["messages"][0]["content"].startswith(NR_EXTRACTOR_PROMPT))
+                self.assertNotIn("tools", body)
+                self.assertNotIn("temperature", body)
                 nr = NrSchema(id=1, nome="NR", texto="Texto", ultima_atualizacao="08/10/2026")
                 nr.aplicar_analise(analise)
                 with patch.object(self.database, "pending_collection") as collection:
                     self.database.salvar_nr(nr)
-                    payload = collection.update_one.call_args.args[1]["$set"]
-                    self.assertEqual(payload["usabilidade"], categoria)
+                    self.assertEqual(collection.update_one.call_args.args[1]["$set"]["usabilidade"], categoria)
 
-    def test_old_groq_value_activates_gemini_with_updated_prompt_and_schema(self):
-        for categoria in ("Colaborador", "Empresa"):
-            with self.subTest(categoria=categoria), patch.object(
-                ChatGroq, "_generate", return_value=resposta_groq("Funcionario")
-            ), patch.object(
-                ChatGoogleGenerativeAI, "_generate", return_value=resposta_gemini(categoria)
-            ) as gemini:
-                analise = self.agent.processar_nr("Texto da NR.")
-                self.assertEqual(analise.usabilidade, categoria)
-                args, kwargs = gemini.call_args
-                self.assertEqual(args[0][0].content, NR_EXTRACTOR_PROMPT)
-                self.assertEqual(kwargs["response_json_schema"]["properties"]["usabilidade"]["enum"], ["Colaborador", "Empresa"])
+    def test_invalid_category_retries_same_luna_without_another_provider(self):
+        with patch("httpx.Client.post", side_effect=[resposta_luna("Funcionario"), resposta_luna("Colaborador")]) as request:
+            self.assertEqual(self.agent.processar_nr("Texto da NR").usabilidade, "Colaborador")
+            self.assertEqual(request.call_count, 2)
+            self.assertTrue(all(c.kwargs["json"]["model"] == "openai/gpt-6-luna" for c in request.call_args_list))
 
     def test_python_and_worker_prompts_match_and_exclude_old_category(self):
         source = (Path(__file__).resolve().parents[1] / "cloudflare" / "prompt.ts").read_text(encoding="utf-8")
@@ -92,13 +73,11 @@ class UsabilidadeTest(unittest.TestCase):
         self.assertIn('"Colaborador" ou "Empresa"', NR_EXTRACTOR_PROMPT)
         self.assertNotIn("Funcionario", NR_EXTRACTOR_PROMPT)
 
-    def test_both_providers_returning_old_value_raise_instead_of_saving_it(self):
-        with patch.object(ChatGroq, "_generate", return_value=resposta_groq("Funcionario")), patch.object(
-            ChatGoogleGenerativeAI, "_generate", return_value=resposta_gemini("Funcionario")
-        ) as gemini:
+    def test_two_invalid_responses_fail_before_writing(self):
+        with patch("httpx.Client.post", side_effect=[resposta_luna("Funcionario"), resposta_luna("Funcionario")]) as request:
             with self.assertRaises(ValueError):
                 self.agent.processar_nr("Texto da NR.")
-            gemini.assert_called_once()
+            self.assertEqual(request.call_count, 2)
 
     def test_schema_rejects_old_and_unknown_categories(self):
         for categoria in ("Funcionario", "Mista", "colaborador", "Colaborador e Empresa", ["Colaborador"]):

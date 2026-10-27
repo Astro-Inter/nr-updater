@@ -1,10 +1,9 @@
-GEMINI_API_KEY=
-GEMINI_MODEL=
-GROQ_API_KEY=
-GROQ_MODEL=
 JOBS_TOKEN=
 MONGO_DATABASE=
 MONGO_URI=
 RODAR_CRON=
 URL_NRS=
 JOBS_ENABLED=false
+
+# Segredo do backend: OpenRouter e o unico provedor de inferencia.
+OPENROUTER_API_KEY=

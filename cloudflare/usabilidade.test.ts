@@ -14,7 +14,7 @@ const analysis = (usabilidade: unknown) => ({
   usabilidade,
 });
 
-function setup(t: TestContext, documents: Array<Record<string, unknown>> = [], groqValue: unknown = "Colaborador", geminiValue: unknown = "Colaborador", approvedDocuments: Array<Record<string, unknown>> = []) {
+function setup(t: TestContext, documents: Array<Record<string, unknown>> = [], firstValue: unknown = "Colaborador", secondValue: unknown = "Colaborador", approvedDocuments: Array<Record<string, unknown>> = []) {
   const calls: Array<{ url: string; body: any }> = [];
   const migrations: unknown[] = [];
   const writes: unknown[] = [];
@@ -58,13 +58,21 @@ function setup(t: TestContext, documents: Array<Record<string, unknown>> = [], g
     if (url === "https://example.test/nr-1") return new Response(`<span>Atualizado em</span><span class="value">${updatedAt}</span><main><p>Treinamento obrigatório dos trabalhadores.</p></main>`);
     const body = JSON.parse(String(init?.body));
     calls.push({ url, body });
-    if (url.includes("api.groq.com")) return Response.json({ choices: [{ message: { content: JSON.stringify(analysis(groqValue)) } }] });
-    if (url.includes("generativelanguage.googleapis.com")) return Response.json({ candidates: [{ content: { parts: [{ text: JSON.stringify(analysis(geminiValue)) }] } }] });
+    if (url === "https://openrouter.ai/api/v1/chat/completions") {
+      assert.equal(body.model, "openai/gpt-6-luna");
+      assert.equal(body.reasoning.effort, "none");
+      assert.equal(body.response_format.type, "json_object");
+      assert.equal(body.temperature, undefined);
+      assert.equal(body.tools, undefined);
+      assert.equal(init?.redirect, "manual");
+      return Response.json({ choices: [{ finish_reason: "stop", message: {
+        content: JSON.stringify(analysis(calls.length === 1 ? firstValue : secondValue)) } }] });
+    }
     throw new Error(`Requisição inesperada no teste: ${url}`);
   });
   const env = {
     MONGO_URI: "mongodb://localhost:27017", MONGO_DATABASE: "test",
-    GROQ_API_KEY: "test-key", GEMINI_API_KEY: "test-key",
+    OPENROUTER_API_KEY: "test-key",
     URL_NRS: "https://example.test/nrs", HYPERDRIVE: { connectionString: "postgresql://localhost/test" },
   };
   return { documents, approvedDocuments, calls, migrations, writes, queries, env };
@@ -82,16 +90,16 @@ for (const category of ["Colaborador", "Empresa"]) {
   });
 }
 
-test("Funcionario retornado pelo Groq aciona Gemini com prompt atualizado", async (t) => {
+test("Categoria invalida aciona uma correcao no mesmo Luna", async (t) => {
   const state = setup(t, [], "Funcionario", "Colaborador");
   const result = await runUpdate(state.env);
   assert.equal(result.updated, 1);
   assert.equal(state.documents[0].usabilidade, "Colaborador");
   assert.equal(state.calls.length, 2);
-  assert.equal(state.calls[1].body.systemInstruction.parts[0].text, NR_EXTRACTOR_PROMPT);
+  assert.ok(state.calls[1].body.messages[0].content.startsWith(NR_EXTRACTOR_PROMPT));
 });
 
-test("valor antigo vindo dos dois modelos causa falha sem gravar a análise", async (t) => {
+test("valor antigo nas duas tentativas causa falha sem gravar a análise", async (t) => {
   const state = setup(t, [], "Funcionario", "Funcionario");
   const result = await runUpdate(state.env);
   assert.equal(result.status, "partial");

@@ -24,3 +24,8 @@ htmlcov/
 build/
 dist/
 *.egg-info/
+node_modules/
+.wrangler/
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
