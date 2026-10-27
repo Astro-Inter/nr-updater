@@ -1,3 +1,4 @@
+import { observe, diagnostic } from "./diagnostics.ts";
 import { MongoClient, type Document, type MongoClientOptions } from "mongodb";
 import { Pool } from "pg";
 import { NR_EXTRACTOR_PROMPT } from "./prompt.ts";
@@ -105,14 +106,14 @@ async function getHtml(url: string): Promise<string> {
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
       const response = await fetch(url, { headers: { "User-Agent": "Astro NR updater/1.0" }, redirect: "follow", signal: AbortSignal.timeout(60_000) });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      if (!response.ok) throw Object.assign(new Error("Upstream HTTP failure"), { code: `HTTP_${response.status}` });
       return await response.text();
     } catch (error) {
       lastError = error;
       if (attempt < 3) await new Promise((resolve) => setTimeout(resolve, 2 ** attempt * 1000));
     }
   }
-  throw new Error(`Não foi possível carregar ${new URL(url).hostname}: ${String(lastError)}`);
+  throw new Error(`Não foi possível carregar ${new URL(url).hostname}: falha operacional`, { cause: lastError });
 }
 
 async function scrape(env: Env): Promise<Norm[]> {
@@ -161,17 +162,17 @@ async function analyze(text: string, env: Env): Promise<Analysis> {
       method: "POST", headers: { Authorization: `Bearer ${env.GROQ_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({ model: env.GROQ_MODEL || "llama-3.3-70b-versatile", temperature: 0, response_format: { type: "json_object" }, messages: [{ role: "system", content: NR_EXTRACTOR_PROMPT }, { role: "user", content }] }),
     });
-    if (!response.ok) throw new Error(`Groq HTTP ${response.status}`);
+    if (!response.ok) throw Object.assign(new Error("Groq HTTP failure"), { code: `GROQ_HTTP_${response.status}` });
     const data = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
     return parseAnalysis(data.choices?.[0]?.message?.content);
   } catch (groqError) {
-    console.warn(JSON.stringify({ event: "analysis_fallback", provider: "gemini", reason: String(groqError).slice(0, 160) }));
+    console.warn(JSON.stringify({ event: "analysis_fallback", provider: "gemini", ...diagnostic(groqError) }));
     const model = env.GEMINI_MODEL || "gemini-2.5-flash";
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(env.GEMINI_API_KEY)}`, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ systemInstruction: { parts: [{ text: NR_EXTRACTOR_PROMPT }] }, contents: [{ role: "user", parts: [{ text: content }] }], generationConfig: { temperature: 0, responseMimeType: "application/json" } }),
     });
-    if (!response.ok) throw new Error(`Groq falhou e Gemini retornou HTTP ${response.status}`);
+    if (!response.ok) throw Object.assign(new Error("Gemini HTTP failure"), { code: `GEMINI_HTTP_${response.status}` });
     const data = await response.json() as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> };
     return parseAnalysis(data.candidates?.[0]?.content?.parts?.map((part) => part.text ?? "").join(""));
   }
@@ -191,20 +192,20 @@ export async function runUpdate(env: Env, dryRun = false): Promise<Record<string
   const pg = new Pool({ connectionString: env.HYPERDRIVE.connectionString, max: 1, connectionTimeoutMillis: 15_000 });
   let updated = 0, failed = 0, unchanged = 0;
   try {
-    await mongo.connect();
+    await observe("connect", "mongodb", () => mongo.connect());
     const collection = mongo.db(env.MONGO_DATABASE).collection<NrDocument>("nrs");
     // Sync approved data before scraping/AI so their failures cannot block publication.
     if (!dryRun) {
       const postgresRows = await collection.find({}, { projection: { nome: 1, revogada: 1, tempo_reciclagem_meses: 1 } }).toArray();
       const payload = postgresRows.map((row) => ({ id: String(row._id), nome: row.nome ?? null, revogada: row.revogada ?? null, tempo_reciclagem_mes: row.tempo_reciclagem_meses ?? null }));
-      const client = await pg.connect();
+      const client = await observe("connect", "postgresql", () => pg.connect());
       try { await client.query("CALL ler_json_nr($1::text)", [JSON.stringify(payload)]); }
       finally { client.release(); }
       console.log(JSON.stringify({ event: "postgres_sync_finished", status: "success", count: payload.length }));
     }
     const pendingCollection = mongo.db(env.MONGO_DATABASE).collection<NrDocument>("nrs_pendentes");
     if (!dryRun) await pendingCollection.updateMany({ usabilidade: "Funcionario" }, { $set: { usabilidade: "Colaborador" } });
-    const norms = await scrape(env);
+    const norms = await observe("scrape_norms", "govbr", () => scrape(env));
     for (const norm of norms) {
       const current = await collection.findOne({ _id: norm.id, ultima_atualizacao: norm.updatedAt }, { projection: { _id: 1 } });
       if (current) { unchanged++; continue; }
@@ -212,7 +213,7 @@ export async function runUpdate(env: Env, dryRun = false): Promise<Record<string
       if (pending) { unchanged++; continue; }
       if (dryRun) { updated++; continue; }
       try {
-        const analysis = await analyze(norm.text, env);
+        const analysis = await observe("analyze_norm", "llm", () => analyze(norm.text, env));
         await pendingCollection.updateOne({ _id: norm.id }, {
           $set: { nome: norm.name, revogada: norm.revoked, ...analysis, ultima_atualizacao: norm.updatedAt },
           $setOnInsert: { data_criacao: new Date() },
@@ -220,11 +221,11 @@ export async function runUpdate(env: Env, dryRun = false): Promise<Record<string
         updated++;
       } catch (error) {
         failed++;
-        console.error(JSON.stringify({ event: "norm_update_failed", id: norm.id, error: String(error).slice(0, 300) }));
+        console.error(JSON.stringify({ event: "norm_update_failed", id: norm.id, ...diagnostic(error) }));
       }
     }
     if (dryRun) {
-      const client = await pg.connect();
+      const client = await observe("connect", "postgresql", () => pg.connect());
       try { await client.query("SELECT 1"); }
       finally { client.release(); }
     }
@@ -241,14 +242,15 @@ export default {
     if (request.method !== "POST" || new URL(request.url).pathname !== "/run") return Response.json({ error: "not_found" }, { status: 404 });
     const dryRun = new URL(request.url).searchParams.get("dry_run");
     if (dryRun !== "true") return Response.json({ error: "manual_runs_must_be_dry_run" }, { status: 400 });
+    const runId = crypto.randomUUID(), started = Date.now();
     try {
       const result = await runUpdate(env, true);
       queueGrafanaLog(ctx, env, "nr-updater", "nr_update_validated", "INFO",
-        { status: "dry_run", found: result.found, updated: result.updated, failed: result.failed });
+        { run_id: runId, duration_ms: Date.now() - started, status: "dry_run", found: result.found, updated: result.updated, failed: result.failed });
       return Response.json(result);
     } catch (error) {
-      console.error(JSON.stringify({ event: "update_failed", error: String(error).slice(0, 500) }));
-      queueGrafanaLog(ctx, env, "nr-updater", "nr_update_failed", "ERROR", { operation: "manual_dry_run" });
+      console.error(JSON.stringify({ event: "update_failed", ...diagnostic(error) }));
+      queueGrafanaLog(ctx, env, "nr-updater", "nr_update_failed", "ERROR", { operation: "manual_dry_run", run_id: runId, duration_ms: Date.now() - started, ...diagnostic(error) });
       return Response.json({ error: "update_failed" }, { status: 500 });
     }
   },
@@ -257,16 +259,17 @@ export default {
       console.log(JSON.stringify({ event: "cron_skipped", cron: event.cron }));
       return;
     }
+    const runId = crypto.randomUUID(), started = Date.now();
     let result: Record<string, number | string>;
     try {
       result = await runUpdate(env, false);
     } catch (error) {
-      queueGrafanaLog(ctx, env, "nr-updater", "nr_update_failed", "ERROR", { operation: "scheduled" });
+      queueGrafanaLog(ctx, env, "nr-updater", "nr_update_failed", "ERROR", { operation: "scheduled", run_id: runId, duration_ms: Date.now() - started, ...diagnostic(error) });
       throw error;
     }
     queueGrafanaLog(ctx, env, "nr-updater", "nr_update_finished",
       result.status === "success" ? "INFO" : "ERROR", {
-        status: result.status, found: result.found, updated: result.updated, unchanged: result.unchanged,
+        run_id: runId, duration_ms: Date.now() - started, status: result.status, found: result.found, updated: result.updated, unchanged: result.unchanged,
         failed: result.failed, scheduled_time: new Date(event.scheduledTime).toISOString(),
       });
     console.log(JSON.stringify({ event: "update_finished", ...result, scheduledTime: event.scheduledTime }));

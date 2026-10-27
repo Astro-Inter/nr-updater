@@ -62,3 +62,7 @@ No Grafana Cloud, abra **Drilldown > Logs** (ou **Explore > Logs**) e filtre por
 `service_name = nr-updater`. A conversão OTLP do Loki troca os pontos dos nomes
 de atributos por sublinhados, por isso `service.name` aparece como
 `service_name`.
+
+## Diagnóstico operacional
+
+Consulte [os campos e limites dos novos diagnósticos](docs/observability-diagnostics.md) para investigar falhas por requisição ou execução no Grafana.
