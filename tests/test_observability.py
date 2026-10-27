@@ -49,7 +49,7 @@ class ObservabilityTest(unittest.TestCase):
         logger.propagate = False
         logger.setLevel(logging.INFO)
 
-        with patch.dict(os.environ, {"GROQ_API_KEY": "secret-value"}, clear=True):
+        with patch.dict(os.environ, {"OPENROUTER_API_KEY": "secret-value"}, clear=True):
             attributes = _resource_attributes()
             handler = logging.StreamHandler(stream)
             handler.addFilter(SensitiveDataFilter())
